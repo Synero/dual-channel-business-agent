@@ -1,0 +1,28 @@
+{
+  "_description": "Customer memory file. One entry per phone number. Add any fields your business needs.",
+  "_note": "This is a template. The actual file lives in data/clientes.json in your HERMES_HOME.",
+  "clientes": [
+    {
+      "telefono": "+569XXXXXXXX",
+      "nombre": "Ejemplo Cliente",
+      "primer_contacto": "YYYY-MM-DD",
+      "ultima_interaccion": "YYYY-MM-DD",
+      "historial": [
+        {
+          "fecha": "YYYY-MM-DD",
+          "tipo": "pedido|consulta|cita|cotizacion|reserva|inscripcion|ticket|otro",
+          "detalle": "what they bought / booked / asked about",
+          "monto": 0
+        }
+      ],
+      "preferencias": {
+        "productos_frecuentes": ["item 1", "item 2"],
+        "horario_preferido": "HH:MM",
+        "ubicacion_habitual": "their usual spot / address",
+        "profesional_preferido": "if applicable",
+        "notas_adicionales": "any allergies, preferences, special needs"
+      },
+      "notas": "free-form notes about this customer"
+    }
+  ]
+}

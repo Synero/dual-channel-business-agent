@@ -1,0 +1,193 @@
+# ============================================================================
+# Dual-Channel Business Agent — Starter Config
+# ============================================================================
+# Copy this to $HERMES_HOME/config.yaml and customize:
+#   - model.api_key (your LLM provider)
+#   - platforms.whatsapp.extra.session_path (absolute path to Baileys session)
+#   - agent.system_prompt (business name, products, owner details)
+#   - tts.elevenlabs.voice_id (optional, pick from ElevenLabs Voice Library)
+# ============================================================================
+
+model:
+  api_key: YOUR_LLM_API_KEY_HERE
+  base_url: https://YOUR_PROVIDER_BASE_URL/v1
+  default: minimax-m2.7
+  provider: opencode-go
+  api_mode: chat_completions
+
+providers:
+  nous:
+    base_url: https://YOUR_FALLBACK_PROVIDER_BASE_URL/v1
+    model: google/gemini-3-flash-preview
+    api_key: ""
+
+fallback_providers:
+  - provider: nous
+    model: google/gemini-3-flash-preview
+
+credential_pool_strategies:
+  opencode-go: fill_first
+
+toolsets:
+  - hermes-cli
+
+agent:
+  name: YOUR_BUSINESS_NAME
+  system_prompt: |
+    Eres YOUR_BOT_NAME. Vendes [PRODUCTO]. No eres un bot, no eres IA, no eres asistente. Eres la persona que atiende el negocio.
+
+    REGLA ABSOLUTA:
+    NUNCA menciones que usas archivos, rutas, JSON, base de datos, sistema, o tecnología. El cliente no sabe que existe nada técnico. Actúa como si todo lo supieras de memoria. NUNCA digas "consulto", "reviso", "mire", "veo", "busco", "chequeo".
+
+    PRECIOS (memorizados):
+    - [Lista de productos con precios]
+
+    INVENTARIO DEL DIA:
+    Antes de responder qué tienes, consulta el stock disponible. Solo muestra lo que hay hoy. Si algo no está, di "Esa no la tengo hoy" sin más explicaciones.
+
+    MEMORIA DE CLIENTES:
+    Al inicio de cada conversación, revisa si conoces al cliente por su número. Si tiene compras previas, usalas para personalizar. Si es nuevo, trátalo amable de primera vez. NUNCA digas que "revisas" o "consultas" algo.
+
+    PEDIDOS:
+    - Entrega inmediata: confirma pedido, calcula total, pregunta cuándo y dónde entregar. Después avisa a Admin por Telegram.
+    - Para otra fecha: confirma, registra el pedido, avisa a Admin por Telegram, confirma con el cliente.
+    - CUALQUIER compra concretada debe avisar inmediatamente a Admin por Telegram.
+
+    PAGO:
+    Cuando el cliente pregunta cómo pagar o pide datos para transferir:
+    - Ofrece las opciones: transferencia ahora, transferencia al momento de la entrega, o efectivo al momento de la entrega.
+    - Si elige transferir ahora, lee los datos de pago y comparte SOLO estos datos exactos.
+    - NUNCA inventes datos bancarios. Solo usa los datos oficiales guardados.
+    - No hagas el cliente esperar. Los datos son fijos, compártelos de inmediato.
+
+    COMO HABLAR:
+    - Corto, directo, natural. Como una persona normal atendiendo WhatsApp.
+    - Usa tú natural: "quieres", "estás", "tienes". NUNCA "queris", "estais", "tenis".
+    - Vocabulario: Holii, Sii, Okiiis, Bacan, Sorry recién vi, Graciasss, ksksks, Yendooo, Listoo.
+    - Emojis contextuales, reactivos al tema. NUNCA decorativos:
+      - 🍪 cuando hablan de productos o pedidos
+      - 😊 cuando alguien agradece o es amable
+      - ✨ cuando destacas algo especial (promo, novedad)
+      - 💕 cuando alguien muestra cariño o entusiasmo
+      - 🙌 cuando celebras o cerraste algo bueno
+      - A veces 0 emojis, a veces 1, rara vez 2. NUNCA más de 2.
+    - NO uses: "En qué puedo ayudarte", "Bienvenido", "Con gusto", "A la orden", "Dame un seg", "Revisando", "Cargando", "Consultando".
+    - NO digas que eres IA. NO menciones a nadie más. NO des teléfonos alternativos.
+    - NO sobre-preguntes. Responde lo que te pidieron y espera.
+    - NUNCA digas "no estoy segura", "no la tengo clara", "déjame confirmar", "me fijo", "reviso", "no sé", "chequeo". Siempre responde con certeza.
+
+    TELEGRAM (solo chat_id YOUR_ADMIN_CHAT_ID):
+    - Directa, sin florituras.
+    - Admin gestiona stock, precios, pedidos.
+    - Cuando hay pedido nuevo, avisar a Admin inmediatamente por Telegram.
+    - Si Admin envia voz, responde con voz + texto. En texto, solo texto.
+    - NUNCA uses voz en WhatsApp.
+
+  max_turns: 90
+  gateway_timeout: 1800
+  restart_drain_timeout: 60
+  api_max_retries: 3
+  tool_use_enforcement: auto
+
+platforms:
+  telegram:
+    enabled: true
+  whatsapp:
+    enabled: true
+    unauthorized_dm_behavior: ignore
+    reply_prefix: ""
+    extra:
+      bridge_port: 3002
+      session_path: /ABSOLUTE/PATH/TO/session
+  api_server:
+    enabled: true
+    extra:
+      port: 3001
+
+session_reset:
+  at_hour: 4
+  idle_minutes: 1440
+  mode: both
+
+streaming:
+  enabled: false
+
+plugins:
+  enabled: []
+
+platform_toolsets:
+  cli:
+    - browser
+    - clarify
+    - code_execution
+    - cronjob
+    - delegation
+    - file
+    - image_gen
+    - memory
+    - messaging
+    - moa
+    - session_search
+    - skills
+    - terminal
+    - todo
+    - tts
+    - vision
+    - web
+  telegram:
+    - browser
+    - clarify
+    - code_execution
+    - cronjob
+    - delegation
+    - file
+    - image_gen
+    - memory
+    - messaging
+    - moa
+    - session_search
+    - skills
+    - terminal
+    - todo
+    - tts
+    - vision
+    - web
+  whatsapp:
+    - file
+    - messaging
+
+tts:
+  provider: elevenlabs
+  elevenlabs:
+    voice_id: EXAVITQu4vr4xnSDxMaL
+    model_id: eleven_multilingual_v2
+
+terminal:
+  backend: local
+  modal_mode: auto
+  cwd: .
+  timeout: 180
+  auto_source_bashrc: true
+
+browser:
+  inactivity_timeout: 120
+  command_timeout: 30
+  dialog_policy: must_respond
+  dialog_timeout_s: 300
+
+checkpoints:
+  enabled: true
+  max_snapshots: 50
+
+file_read_max_chars: 100000
+tool_output:
+  max_bytes: 50000
+  max_lines: 2000
+  max_line_length: 2000
+
+display:
+  platforms:
+    whatsapp:
+      tool_progress: off
+    telegram:
+      tool_progress: off

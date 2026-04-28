@@ -1,0 +1,25 @@
+# Generated configs
+*.json
+!templates/*.json
+!scripts/*.json
+generated_config/
+
+# Instagram exports (private)
+instagram_export/
+chat_logs/
+personality_profile.json
+
+# Hermes
+.env
+session/
+cache/
+logs/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store

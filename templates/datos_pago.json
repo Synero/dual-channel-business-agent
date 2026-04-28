@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "notas": "Datos bancarios para transferencias. SOLO compartir cuando el cliente pide datos para transferir.",
+  "titular": "YOUR_FULL_NAME",
+  "rut": "YOUR_RUT",
+  "banco": "YOUR_BANK",
+  "tipo_cuenta": "YOUR_ACCOUNT_TYPE",
+  "numero_cuenta": "YOUR_ACCOUNT_NUMBER",
+  "correo": "YOUR_EMAIL",
+  "opciones_pago": [
+    "Transferencia ahora",
+    "Transferencia al momento de la entrega",
+    "Efectivo al momento de la entrega"
+  ]
+}
