@@ -3,7 +3,7 @@
 Parse Meta/Instagram HTML message export into plain-text conversation files.
 
 Usage:
-    python parse-instagram-export.py /path/to/messages/inbox /path/to/output
+    python parse_instagram_export.py <inbox_dir> <output_dir> [--business-name 'Your Name']
 
 Output:
     One .txt file per conversation, ready for LLM training context.
@@ -17,6 +17,14 @@ from html.parser import HTMLParser
 
 
 class MessageParser(HTMLParser):
+    """Parse Instagram/Meta HTML message exports.
+
+    Handles the nested div structure where:
+    - Sender name is in <h2 class="... _a6-h ...">
+    - Text content is in <div class="... _a6-p ..."> with nested inner divs
+    - Timestamp is in <div class="... _a6-o ...">
+    """
+
     def __init__(self):
         super().__init__()
         self.messages = []
@@ -24,6 +32,7 @@ class MessageParser(HTMLParser):
         self.in_sender = False
         self.in_text = False
         self.in_time = False
+        self.text_depth = 0  # Track nesting depth inside text container
         self.current_sender = None
         self.current_text = None
         self.current_time = None
@@ -31,44 +40,75 @@ class MessageParser(HTMLParser):
     def handle_starttag(self, tag, attrs):
         attrs_dict = dict(attrs)
         self.current_tag = tag
+        cls = attrs_dict.get("class", "")
 
-        if tag == "div":
-            cls = attrs_dict.get("class", "")
-            if "_3-95" in cls and "_a6-h" in cls:
-                self.in_sender = True
-            elif "_3-95" in cls and "_a6-p" in cls:
-                self.in_text = True
-            elif "_3-94" in cls and "_a6-g" in cls:
-                self.in_time = True
+        # Sender: can be h2 or div with _a6-h class
+        if "_a6-h" in cls and ("_3-95" in cls or "_2pim" in cls):
+            self.in_sender = True
+            self.current_sender = None
+
+        # Text container: div with _a6-p class
+        elif tag == "div" and "_a6-p" in cls and "_3-95" in cls:
+            self.in_text = True
+            self.text_depth = 0
+            self.current_text = None
+
+        # Track nesting depth inside text container
+        elif self.in_text and tag == "div":
+            self.text_depth += 1
+
+        # Timestamp: div with _a6-o class
+        elif tag == "div" and "_a6-o" in cls and "_3-94" in cls:
+            self.in_time = True
+            self.current_time = None
 
     def handle_endtag(self, tag):
-        if self.in_sender and tag == "div":
+        # Sender end
+        if self.in_sender and tag in ("h2", "div"):
             self.in_sender = False
+
+        # Text container end: only when the OUTER _a6-p div closes
         elif self.in_text and tag == "div":
-            if self.current_sender and self.current_text:
-                self.messages.append((
-                    self.current_time or "unknown",
-                    self.current_sender.strip(),
-                    self.current_text.strip()
-                ))
-            self.current_text = None
-            self.in_text = False
+            if self.text_depth > 0:
+                # Inner div closing — don't exit text mode
+                self.text_depth -= 1
+            else:
+                # The outer _a6-p div is closing — commit the message
+                self.in_text = False
+                if self.current_sender and self.current_text:
+                    text = self.current_text.strip()
+                    if text:
+                        self.messages.append((
+                            self.current_time or "unknown",
+                            self.current_sender.strip(),
+                            text
+                        ))
+                self.current_text = None
+
+        # Time end
         elif self.in_time and tag == "div":
             self.in_time = False
 
     def handle_data(self, data):
         if self.in_sender:
-            self.current_sender = data
+            if self.current_sender is None:
+                self.current_sender = data
+            else:
+                self.current_sender += data
         elif self.in_text:
             if self.current_text is None:
                 self.current_text = data
             else:
                 self.current_text += data
         elif self.in_time:
-            self.current_time = data
+            if self.current_time is None:
+                self.current_time = data
+            else:
+                self.current_time += data
 
 
 def parse_html_file(filepath):
+    """Parse a single HTML message file and return list of (time, sender, text) tuples."""
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
     parser = MessageParser()
@@ -76,7 +116,8 @@ def parse_html_file(filepath):
     return parser.messages
 
 
-def process_inbox(inbox_dir, output_dir):
+def process_inbox(inbox_dir, output_dir, business_name_filter=None):
+    """Process all conversation directories in the inbox."""
     inbox = Path(inbox_dir)
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -85,7 +126,7 @@ def process_inbox(inbox_dir, output_dir):
     total_messages = 0
     business_messages = 0
 
-    for conv_dir in inbox.iterdir():
+    for conv_dir in sorted(inbox.iterdir()):
         if not conv_dir.is_dir():
             continue
 
@@ -100,12 +141,12 @@ def process_inbox(inbox_dir, output_dir):
         total_conversations += 1
         total_messages += len(all_messages)
 
-        # Count messages from business account if --business-name provided
-        business_name_filter = getattr(process_inbox, '_business_filter', None)
+        # Count messages from business account if filter provided
+        biz_count = 0
         if business_name_filter:
             filter_lower = business_name_filter.lower()
-            business_msgs = [m for m in all_messages if filter_lower in m[1].lower()]
-            business_messages += len(business_msgs)
+            biz_count = sum(1 for m in all_messages if filter_lower in m[1].lower())
+            business_messages += biz_count
 
         # Write output
         safe_name = re.sub(r'[^\w\-]', '_', conv_dir.name)
@@ -114,7 +155,7 @@ def process_inbox(inbox_dir, output_dir):
             f.write(f"# Conversation: {conv_dir.name}\n")
             f.write(f"# Total messages: {len(all_messages)}\n")
             if business_name_filter:
-                f.write(f"# Messages from business account: {len(business_msgs)}\n")
+                f.write(f"# Messages from '{business_name_filter}': {biz_count}\n")
             f.write("-" * 50 + "\n\n")
             for time_str, sender, text in all_messages:
                 f.write(f"[{time_str}] {sender}: {text}\n\n")
@@ -130,10 +171,13 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Usage: python parse_instagram_export.py <inbox_dir> <output_dir> [--business-name 'Your Name']")
         sys.exit(1)
-    
+
     business_filter = None
-    if len(sys.argv) > 3 and sys.argv[3] == "--business-name" and len(sys.argv) > 4:
-        business_filter = sys.argv[4]
-    
-    process_inbox._business_filter = business_filter
-    process_inbox(sys.argv[1], sys.argv[2])
+    if "--business-name" in sys.argv:
+        idx = sys.argv.index("--business-name")
+        if idx + 1 < len(sys.argv):
+            business_filter = sys.argv[idx + 1]
+    elif len(sys.argv) > 3:
+        business_filter = sys.argv[3]
+
+    process_inbox(sys.argv[1], sys.argv[2], business_filter)

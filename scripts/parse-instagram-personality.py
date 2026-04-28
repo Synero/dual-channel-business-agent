@@ -15,7 +15,13 @@ from collections import Counter
 
 
 class MessageParser(HTMLParser):
-    """Parse Meta's message_*.html files."""
+    """Parse Meta's message_*.html files.
+    
+    Handles the nested div structure where:
+    - Sender name is in <h2 class="... _a6-h ..."> (not span)
+    - Text content is in <div class="... _a6-p ..."> with nested inner divs
+    - Timestamp is in <div class="... _a6-o ...">
+    """
     
     def __init__(self, business_name):
         super().__init__()
@@ -26,37 +32,53 @@ class MessageParser(HTMLParser):
         self.current_text = ""
         self.messages = []
         self.div_depth = 0
+        self.text_depth = 0  # Track nesting inside text container
         
     def handle_starttag(self, tag, attrs):
-        attrs = dict(attrs)
+        attrs_dict = dict(attrs)
+        cls = attrs_dict.get("class", "")
+        
+        # Sender: h2 or div with _a6-h class
+        if "_a6-h" in cls and ("_3-95" in cls or "_2pim" in cls):
+            self.in_sender = True
+            self.current_sender = ""
+        
+        # Text container: div with _a6-p class
+        elif tag == "div" and "_a6-p" in cls and "_3-95" in cls:
+            self.in_message = True
+            self.text_depth = 0
+            self.current_text = ""
+        
+        # Track nesting inside text container
+        elif self.in_message and tag == "div":
+            self.text_depth += 1
+        
         if tag == "div":
             self.div_depth += 1
-            if attrs.get("class") == "_3-95 _a6-g":
-                # Message container
-                pass
-        if tag == "span":
-            if attrs.get("class") == "_a6-h _a6-i":
-                self.in_sender = True
-            elif attrs.get("class") == "_a6-p":
-                self.in_message = True
-                
+        
     def handle_endtag(self, tag):
         if tag == "div":
             self.div_depth -= 1
-        if tag == "span":
-            if self.in_sender:
-                self.in_sender = False
-            elif self.in_message:
+        
+        # Sender end
+        if self.in_sender and tag in ("h2", "div"):
+            self.in_sender = False
+        
+        # Text container end: only when the OUTER _a6-p div closes
+        elif self.in_message and tag == "div":
+            if self.text_depth > 0:
+                self.text_depth -= 1
+            else:
+                self.in_message = False
                 if self.current_sender.lower() == self.business_name:
                     text = self.current_text.strip()
                     if text:
                         self.messages.append(text)
                 self.current_text = ""
-                self.in_message = False
                 
     def handle_data(self, data):
         if self.in_sender:
-            self.current_sender = data.strip()
+            self.current_sender += data.strip()
         elif self.in_message:
             self.current_text += data
 
